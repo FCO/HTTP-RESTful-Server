@@ -40,3 +40,5 @@ ok($obj->{nouns}->{"named noun with verbs"}->{obj} eq $noun, "Included the refer
 ok(exists $obj->{nouns}->{"named noun with verbs"}->{verbs}, "Created verbs key");
 ok(@{$obj->{nouns}->{"named noun with verbs"}->{verbs}} == 2, "Created 2 verbs");
 is_deeply([sort @{$obj->{nouns}->{"named noun with verbs"}->{verbs}}], [sort qw/GET PUT/], "2 write verbs");
+
+

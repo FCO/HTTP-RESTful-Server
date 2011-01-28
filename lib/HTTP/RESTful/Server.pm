@@ -10,15 +10,18 @@ use YAML ();
 
 $| = 1;
 
-my %verbs = (
-             GET      => 200,    POST      => 200,
-             PUT      => 201,    DELETE    => 204,
-             HEAD     => 204,    TRACE     => 200,
-             PROPFIND => 200,    PROPPATCH => 200,
-             MKCOL    => 200,    COPY      => 200,
-             MOVE     => 200,    LOCK      => 204,
-             UNLOCK   => 204,    get_verbs => 200,
-            );
+
+has "verb_return_code" => (is => "ro", isa => "HashRef", default => sub {
+             {
+             	GET      => 200,    POST      => 200,
+                PUT      => 201,    DELETE    => 204,
+                HEAD     => 204,    TRACE     => 200,
+                PROPFIND => 200,    PROPPATCH => 200,
+                MKCOL    => 200,    COPY      => 200,
+                MOVE     => 200,    LOCK      => 204,
+                UNLOCK   => 204,    get_verbs => 200,
+             }
+});
 
 has server => (is => "ro", isa => "HTTP::Daemon", default => sub{HTTP::Daemon->new(LocalPort => 8080) || croak "Could not create socket"});
 has nouns  => (is => "ro", isa => "HashRef", default => sub{{}});
@@ -124,14 +127,14 @@ sub run {
                my $verb = "get_verbs";
                $verb = $r->method unless $exec_obj eq $self;
                print "Executing noun $try_noun$/";
-               if(grep {$_ eq $verb} keys %verbs and $exec_obj->can($verb)) {
+               if(grep {$_ eq $verb} keys %{$self->verb_return_code} and $exec_obj->can($verb)) {
                   print "Defining Content-Type$/";
                   my $header = HTTP::Headers->new;
                   $header->header("Content-Type" => "text/plain");
                   print "Executing method $verb$/";
                   my $return = YAML::Dump(eval { [ $exec_obj->$verb(@$content) ] });
                   if(not $@) {
-                     my $response = HTTP::Response->new($verbs{$verb}, undef, $header, $return);
+                     my $response = HTTP::Response->new($self->verb_return_code->{$verb}, undef, $header, $return);
                      $client->send_response($response);
                   } else {
                      $client->send_error(500, $@);
@@ -166,7 +169,7 @@ sub add_noun {
    }
    my $nouns = $self->nouns;
    my $obj = $nouns->{$noun}->{obj} = shift;
-   for my $verb (keys %verbs) {
+   for my $verb (keys %{$self->verb_return_code}) {
       push @{$nouns->{$noun}->{verbs}}, $verb if $obj->can($verb)
    }
    $self
