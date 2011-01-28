@@ -23,8 +23,25 @@ has "verb_return_code" => (is => "ro", isa => "HashRef", default => sub {
              }
 });
 
-has server => (is => "ro", isa => "HTTP::Daemon", default => sub{HTTP::Daemon->new(LocalPort => 8080) || croak "Could not create socket"});
+has port   => (is => "rw", isa => "Int", default => 8080);
+has server => (is => "ro", isa => "HTTP::Daemon"); #, default => sub{HTTP::Daemon->new(LocalPort => shift()->port) || croak "Could not create socket"});
 has nouns  => (is => "ro", isa => "HashRef", default => sub{{}});
+
+after port => sub {
+	my $self = shift;
+	my $value = shift;
+	$self->_create_server if defined $value;
+};
+
+before server => sub {
+	my $self = shift;
+	defined $self->{server} or $self->_create_server;
+};
+
+sub _create_server {
+	my $self = shift;
+	$self->{server} = HTTP::Daemon->new(LocalPort => $self->port) || croak "Could not create socket";
+}
 
 =head1 NAME
 
