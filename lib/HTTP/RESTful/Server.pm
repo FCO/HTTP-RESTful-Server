@@ -24,7 +24,7 @@ has "verb_return_code" => (is => "ro", isa => "HashRef", default => sub {
 });
 
 has port   => (is => "rw", isa => "Int", default => 8080);
-has server => (is => "ro", isa => "HTTP::Daemon"); #, default => sub{HTTP::Daemon->new(LocalPort => shift()->port) || croak "Could not create socket"});
+has server => (is => "ro", isa => "HTTP::Daemon");
 has nouns  => (is => "ro", isa => "HashRef", default => sub{{}});
 
 after port => sub {
