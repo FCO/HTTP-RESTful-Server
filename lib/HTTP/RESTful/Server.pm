@@ -195,7 +195,8 @@ sub run {
 			$try_noun = $1 if $r->uri->path =~ m{/(.+)$};
 			print "Try noun: $try_noun$/" if defined $try_noun;
 			my $exec_obj;
-			while ($try_noun) {
+			while ($try_noun and $try_noun ne "NOUNS") {
+				print "=> $try_noun$/";
 				if ( defined $try_noun and exists $self->nouns->{$try_noun} ) {
 					$exec_obj = $self->nouns->{$try_noun}->{obj};
 					last;

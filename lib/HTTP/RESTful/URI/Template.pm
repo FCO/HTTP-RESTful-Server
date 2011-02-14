@@ -23,7 +23,7 @@ sub BUILD {
 	$regex = $self->template;
 	for my $var ( $self->template =~ m#\{(\w+?)\}#g ) {
 		push @{ $self->{variables} }, $var;
-		$regex =~ s#\{ $var \}#(.*?)#x;
+		$regex =~ s#(^|/)\{ $var \}#$1(\\w+?)#x;
 	}
 	$regex =
 	  ( substr( $self->template, 0, 1 ) eq "/" ? "^" : "" ) . $regex . '$';
@@ -34,6 +34,7 @@ sub match {
 	my $self = shift;
 	my $text = shift;
 
+    print "Trying match ($text) over ", $self->regex, " == ", $text =~ $self->regex, $/;
 	return 1 if $text =~ $self->regex;
 	return;
 }

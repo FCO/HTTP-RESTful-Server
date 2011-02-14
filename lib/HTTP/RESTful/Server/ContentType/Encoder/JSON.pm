@@ -10,10 +10,11 @@ has +content_type => ( is => "ro", default => sub{ [ qw|text/json application/js
 sub encode {
 	my $self = shift;
 	my $data = shift;
-	use Data::Dumper;
-	print Dumper($data), "in JSON is$/", JSON::encode_json($data), $/;
 
-	return JSON::encode_json($data);
+	use Data::Dumper;
+	print Dumper($data), "in JSON is$/", JSON::encode_json($data), $/ if ref $data;
+
+	return ref $data ? JSON::encode_json($data) : $data;
 }
 
 sub decode {
