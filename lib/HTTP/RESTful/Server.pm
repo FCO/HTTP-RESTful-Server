@@ -218,7 +218,7 @@ sub run {
 					print "Defining Content-Type$/";
 					my $header = HTTP::Headers->new;
 					$header->header(
-						"Content-Type" => $self->content_type_default );
+						"Content-Type" => $self->encoder->choose($r) );
 					print "Executing method $verb$/";
 					my $return =
 					  eval { $self->method_choser->run_method( $exec_obj, $r, @$content ) };
@@ -231,7 +231,7 @@ sub run {
 					}
 					if ( not $@ ) {
 						my $resp =
-						  $self->encoder->encode( $self->content_type_default,
+						  $self->encoder->encode( $self->encoder->choose($r),
 							$return );
 						my $response =
 						  HTTP::Response->new( $self->verb_return_code->{$verb},

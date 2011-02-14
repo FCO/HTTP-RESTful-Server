@@ -1,14 +1,27 @@
 package HTTP::RESTful::Server::ContentType::EncodeChoser;
 use Moose;
-#use HTTP::RESTful::Server::ContentType::Encoder::YAML;
-#use HTTP::RESTful::Server::ContentType::Encoder::JSON;
 
 has encoders => ( is => "ro", isa => "HashRef", auto_deref => 0 );
+has content_type_order => (is => "rw", isa => "ArrayRef", default => sub{[qw|text/yaml text/json text/xml|]});
 
 sub BUILD {
 	my $self = shift;
 	$self->find_encoders;
 	$self;
+}
+
+sub choose {
+	my $self = shift;
+	my $req  = shift;
+	
+	if(defined $req->uri->query_form and exists { $req->uri->query_form }->{ "content-type" }){
+		return { $req->uri->query_form }->{ "content-type" }
+	} else {
+		for my $enc(@{ $self->content_type_order }) {
+			return $enc if grep {$_ eq $enc} $req->accept_decodable
+		}
+		return $self->content_type_order->[0]
+	}
 }
 
 sub find_encoders {
