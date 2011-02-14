@@ -5,7 +5,7 @@ use HTTP::RESTful::Server::ContentType::Encoder;
 
 extends "HTTP::RESTful::Server::ContentType::Encoder";
 
-has +content_type => ( is => "ro", default => "text/json" );
+has +content_type => ( is => "ro", default => sub{ [ qw|text/json application/json| ] } );
 
 sub encode {
 	my $self = shift;

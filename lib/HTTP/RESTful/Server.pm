@@ -198,8 +198,9 @@ sub run {
 			while ($try_noun) {
 				if ( defined $try_noun and exists $self->nouns->{$try_noun} ) {
 					$exec_obj = $self->nouns->{$try_noun}->{obj};
-					last
-				} else {
+					last;
+				}
+				else {
 					$try_noun =~ s#/.*?$##;
 				}
 			}
@@ -216,23 +217,25 @@ sub run {
 				  )
 				{
 					print "Defining Content-Type$/";
+					my $ct     = $self->encoder->chose($r);
 					my $header = HTTP::Headers->new;
-					$header->header(
-						"Content-Type" => $self->encoder->choose($r) );
+					$header->header( "Content-Type" => $ct );
 					print "Executing method $verb$/";
-					my $return =
-					  eval { $self->method_choser->run_method( $exec_obj, $r, @$content ) };
-#					my $return;
+					my $return = eval {
+						$self->method_choser->run_method( $exec_obj, $r,
+							@$content );
+					};
+
+					#					my $return;
 					unless ( defined $return ) {
-#						$return = eval { [ $exec_obj->$meth(@$content) ] };
-#					}
-#					elsif ( $exec_obj->can($verb) ) {
+
+					  #						$return = eval { [ $exec_obj->$meth(@$content) ] };
+					  #					}
+					  #					elsif ( $exec_obj->can($verb) ) {
 						$return = eval { [ $exec_obj->$verb(@$content) ] };
 					}
 					if ( not $@ ) {
-						my $resp =
-						  $self->encoder->encode( $self->encoder->choose($r),
-							$return );
+						my $resp = $self->encoder->encode( $ct, $return );
 						my $response =
 						  HTTP::Response->new( $self->verb_return_code->{$verb},
 							undef, $header, $resp );

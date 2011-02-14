@@ -5,7 +5,7 @@ use HTTP::RESTful::Server::ContentType::Encoder;
 
 extends "HTTP::RESTful::Server::ContentType::Encoder";
 
-has +content_type => ( is => "ro", default => "text/xml" );
+has +content_type => ( is => "ro", default => sub{ [ qw|text/xml application/xml| ] } );
 
 sub encode {
 	my $self = shift;
