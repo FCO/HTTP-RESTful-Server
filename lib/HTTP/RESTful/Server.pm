@@ -1,6 +1,9 @@
 package HTTP::RESTful::Server;
 
 use HTTP::RESTful::Server::ContentType::EncodeChoser;
+use HTTP::RESTful::Server::ContentType::Encoder::YAML;
+use HTTP::RESTful::Server::ContentType::Encoder::JSON;
+use HTTP::RESTful::Server::ContentType::Encoder::XML;
 use HTTP::RESTful::Server::Methods;
 use HTTP::Daemon;
 use HTTP::Status;
