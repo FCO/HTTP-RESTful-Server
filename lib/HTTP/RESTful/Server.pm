@@ -1,5 +1,7 @@
 package HTTP::RESTful::Server;
 
+use HTTP::RESTful::Server::ContentType::EncodeChoser;
+use HTTP::RESTful::Server::Methods;
 use HTTP::Daemon;
 use HTTP::Status;
 use HTTP::Response;
@@ -10,24 +12,74 @@ use YAML ();
 
 $| = 1;
 
-has "verb_return_code" => (is => "ro", isa => "HashRef", default => sub {
-             {
-             	GET      => 200,    POST      => 200,
-                PUT      => 201,    DELETE    => 204,
-                HEAD     => 204,    TRACE     => 200,
-                PROPFIND => 200,    PROPPATCH => 200,
-                MKCOL    => 200,    COPY      => 200,
-                MOVE     => 200,    LOCK      => 204,
-                UNLOCK   => 204,    get_verbs => 200,
-             }
-});
+has method_choser => (
+	is      => "ro",
+	isa     => "HTTP::RESTful::Server::Methods",
+	default => sub { HTTP::RESTful::Server::Methods->get_instance }
+);
 
-has port   => (is => "rw", isa => "Int", default => 8080);
-has server => (is => "ro", isa => "HTTP::Daemon");
-has nouns  => (is => "ro", isa => "HashRef", default => sub{{}});
+has "verb_return_code" => (
+	is      => "ro",
+	isa     => "HashRef",
+	default => sub {
+		{
+			GET       => 200,
+			POST      => 200,
+			PUT       => 201,
+			DELETE    => 204,
+			HEAD      => 204,
+			TRACE     => 200,
+			PROPFIND  => 200,
+			PROPPATCH => 200,
+			MKCOL     => 200,
+			COPY      => 201,
+			MOVE      => 201,
+			LOCK      => 201,
+			UNLOCK    => 204,
+			get_verbs => 200,
+		};
+	}
+);
+
+has "auto_verb_return" => (
+	is      => "ro",
+	isa     => "HashRef",
+	default => sub {
+		{
+			GET       => 200,
+			POST      => 200,
+			PUT       => 201,
+			DELETE    => 204,
+			HEADER    => 204,
+			TRACE     => 200,
+			PROPFIND  => 200,
+			PROPPATCH => 200,
+			MKCOL     => 200,
+			COPY      => 200,
+			MOVE      => 200,
+			LOCK      => 204,
+			UNLOCK    => 204,
+			get_verbs => 200,
+		};
+	}
+);
+
+has port => ( is => "rw", isa => "Int", default => 8080 );
+has server => ( is => "ro", isa => "HTTP::Daemon" );
+has nouns => ( is => "ro", isa => "HashRef", default => sub { {} } );
+has content_type_default =>
+  ( is => "rw", isa => "Str", default => "text/json" );
+has encoder => (
+	is      => "ro",
+	isa     => "HTTP::RESTful::Server::ContentType::EncodeChoser",
+	default => sub {
+		my $ec = HTTP::RESTful::Server::ContentType::EncodeChoser->new;
+		$ec;
+	}
+);
 
 after port => sub {
-	my $self = shift;
+	my $self  = shift;
 	my $value = shift;
 	$self->_create_server if defined $value;
 };
@@ -39,7 +91,8 @@ before server => sub {
 
 sub _create_server {
 	my $self = shift;
-	$self->{server} = HTTP::Daemon->new(LocalPort => $self->port) || croak "Could not create socket";
+	$self->{server} = HTTP::Daemon->new( LocalPort => $self->port )
+	  || croak "Could not create socket";
 }
 
 =head1 NAME
@@ -53,7 +106,6 @@ Version 0.01
 =cut
 
 our $VERSION = '0.01';
-
 
 =head1 SYNOPSIS
 
@@ -125,47 +177,80 @@ It runs the server
 =cut
 
 sub run {
-   my $self = shift;
-   print "Please contact me at: <URL:", $self->server->url, ">\n";
-   while (my $client = $self->server->accept) {
-       while (my $r = $client->get_request) {
-           my $content = YAML::Load($r->content);
-           my $try_noun = "NOUNS";
-           $try_noun = $1 if $r->uri->path =~ m{/(.+)(?:/|$)};
-           print "Try noun: $try_noun$/" if defined $try_noun;
-           my $exec_obj;
-           if(defined $try_noun and exists $self->nouns->{$try_noun}) {
-              $exec_obj = $self->nouns->{$try_noun}->{obj}
-           } else {
-              $exec_obj = $self;
-           }
-           if(defined $exec_obj) {
-               my $verb = "get_verbs";
-               $verb = $r->method unless $exec_obj eq $self;
-               print "Executing noun $try_noun$/";
-               if(grep {$_ eq $verb} keys %{$self->verb_return_code} and $exec_obj->can($verb)) {
-                  print "Defining Content-Type$/";
-                  my $header = HTTP::Headers->new;
-                  $header->header("Content-Type" => "text/plain");
-                  print "Executing method $verb$/";
-                  my $return = YAML::Dump(eval { [ $exec_obj->$verb(@$content) ] });
-                  if(not $@) {
-                     my $response = HTTP::Response->new($self->verb_return_code->{$verb}, undef, $header, $return);
-                     $client->send_response($response);
-                  } else {
-                     $client->send_error(500, $@);
-                  }
-               } else {
-                  $client->send_error(405);
-               }
-           } else {
-               $client->send_error(404);
-           }
-       }
-       $client->close;
-       undef($client);
-   }
-   $self
+	my $self = shift;
+	print "Please contact me at: <URL:", $self->server->url, ">\n";
+	while ( my $client = $self->server->accept ) {
+		while ( my $r = $client->get_request ) {
+			my $content = eval {
+				[
+					$self->encoder->decode(
+						$self->content_type_default, $r->content
+					)
+				];
+			};
+			my $try_noun = "NOUNS";
+			$try_noun = $1 if $r->uri->path =~ m{/(.+)$};
+			print "Try noun: $try_noun$/" if defined $try_noun;
+			my $exec_obj;
+			while ($try_noun) {
+				if ( defined $try_noun and exists $self->nouns->{$try_noun} ) {
+					$exec_obj = $self->nouns->{$try_noun}->{obj};
+					last
+				} else {
+					$try_noun =~ s#/.*?$##;
+				}
+			}
+			if ( not $exec_obj ) {
+				$exec_obj = $self;
+			}
+			if ( defined $exec_obj ) {
+				my $verb = "get_verbs";
+				$verb = $r->method unless $exec_obj eq $self;
+				print "Executing noun $try_noun$/";
+				if (
+					grep { $_ eq $verb }
+					keys %{ $self->verb_return_code }
+				  )
+				{
+					print "Defining Content-Type$/";
+					my $header = HTTP::Headers->new;
+					$header->header(
+						"Content-Type" => $self->content_type_default );
+					print "Executing method $verb$/";
+					my $return =
+					  eval { $self->method_choser->run_method( $exec_obj, $r, @$content ) };
+#					my $return;
+					unless ( defined $return ) {
+#						$return = eval { [ $exec_obj->$meth(@$content) ] };
+#					}
+#					elsif ( $exec_obj->can($verb) ) {
+						$return = eval { [ $exec_obj->$verb(@$content) ] };
+					}
+					if ( not $@ ) {
+						my $resp =
+						  $self->encoder->encode( $self->content_type_default,
+							$return );
+						my $response =
+						  HTTP::Response->new( $self->verb_return_code->{$verb},
+							undef, $header, $resp );
+						$client->send_response($response);
+					}
+					else {
+						$client->send_error( 500, $@ );
+					}
+				}
+				else {
+					$client->send_error(405);
+				}
+			}
+			else {
+				$client->send_error(404);
+			}
+		}
+		$client->close;
+		undef($client);
+	}
+	$self;
 }
 
 =head2 add_noun
@@ -176,19 +261,20 @@ Return: the self object
 =cut
 
 sub add_noun {
-   my $self = shift;
-   my $noun;
-   if(defined $_[1]) {
-      $noun = shift;
-   } else {
-      $noun = ref $_[0];
-   }
-   my $nouns = $self->nouns;
-   my $obj = $nouns->{$noun}->{obj} = shift;
-   for my $verb (keys %{$self->verb_return_code}) {
-      push @{$nouns->{$noun}->{verbs}}, $verb if $obj->can($verb)
-   }
-   $self
+	my $self = shift;
+	my $noun;
+	if ( defined $_[1] ) {
+		$noun = shift;
+	}
+	else {
+		$noun = ref $_[0];
+	}
+	my $nouns = $self->nouns;
+	my $obj = $nouns->{$noun}->{obj} = shift;
+	for my $verb ( keys %{ $self->verb_return_code } ) {
+		push @{ $nouns->{$noun}->{verbs} }, $verb if $obj->can($verb);
+	}
+	$self;
 }
 
 =head2 get_nouns
@@ -199,9 +285,9 @@ Return: a list of all nouns names
 =cut
 
 sub get_nouns {
-   my $self = shift;
-   my $nouns = $self->nouns;
-   keys %$nouns if ref $nouns eq "HASH"
+	my $self  = shift;
+	my $nouns = $self->nouns;
+	keys %$nouns if ref $nouns eq "HASH";
 }
 
 =head2 get_verbs
@@ -212,13 +298,13 @@ Return: a hash_ref with all nouns verbs
 =cut
 
 sub get_verbs {
-   my $self = shift;
-   my $noun = shift;
-   my $nouns = $self->nouns;
-   $nouns = {$noun => $nouns->{$noun}} if defined $noun;
-   if(ref $nouns eq "HASH") {
-      return {map {($_ => $nouns->{$_}->{verbs})} keys %$nouns}
-   }
+	my $self  = shift;
+	my $noun  = shift;
+	my $nouns = $self->nouns;
+	$nouns = { $noun => $nouns->{$noun} } if defined $noun;
+	if ( ref $nouns eq "HASH" ) {
+		return { map { ( $_ => $nouns->{$_}->{verbs} ) } keys %$nouns };
+	}
 }
 
 42
